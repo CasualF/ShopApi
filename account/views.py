@@ -13,7 +13,7 @@ class RegistrationView(APIView):
         user = serializer.save()
         if user:
             try:
-                send_confirmation_email(user.email, user.activation_code)
+                send_confirmation_email(user.email, 'http://127.0.0.1:8000/api/account/activate/?activation_code='+str(user.activation_code))
             except:
                 return Response({'message': 'Registered, but wasnt able to send activation code',
                                  'data': serializer.data}, status=201)
@@ -25,7 +25,7 @@ class ActivationView(generics.GenericAPIView):
     serializer_class = ActivationSerializer
 
     def post(self, request):
-        serializer = self.get_serializer(data=request.data)
+        serializer = self.get_serializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response('Successfully activated', status=200)

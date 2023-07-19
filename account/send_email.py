@@ -7,5 +7,4 @@ def send_confirmation_email(email, code):
               f'\n Don\'t share it with anyone',
               'Dastan',
               [email],
-              fail_silently=False
-              )
+              fail_silently=False)
