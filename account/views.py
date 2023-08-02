@@ -1,11 +1,18 @@
 from rest_framework.views import APIView
-from .serializers import RegisterSerializer, ActivationSerializer
+from .serializers import RegisterSerializer, ActivationSerializer, UserSerializer, RegisterPhoneSerializer
 from rest_framework.response import Response
 from .send_email import send_confirmation_email
-from rest_framework import generics
+from rest_framework import generics, permissions
+from django.contrib.auth import get_user_model
+from django.shortcuts import get_object_or_404
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
+
+User = get_user_model()
 
 
 class RegistrationView(APIView):
+    permission_classes = permissions.AllowAny,
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
@@ -13,7 +20,7 @@ class RegistrationView(APIView):
         user = serializer.save()
         if user:
             try:
-                send_confirmation_email(user.email, 'http://127.0.0.1:8000/api/account/activate/?activation_code='+str(user.activation_code))
+                send_confirmation_email(user.email, 'http://127.0.0.1:8000/api/account/activate/?u='+str(user.activation_code))
             except:
                 return Response({'message': 'Registered, but wasnt able to send activation code',
                                  'data': serializer.data}, status=201)
@@ -21,11 +28,63 @@ class RegistrationView(APIView):
         return Response(serializer.data, status=201)
 
 
-class ActivationView(generics.GenericAPIView):
-    serializer_class = ActivationSerializer
+# class ActivationView(generics.GenericAPIView):
+#     serializer_class = ActivationSerializer
+#
+#     def post(self, request):
+#         serializer = self.get_serializer(data=request.query_params)
+#         serializer.is_valid(raise_exception=True)
+#         serializer.save()
+#         return Response('Successfully activated', status=200)
+
+
+class ActivationView(APIView):
+    def get(self, request):
+        code = request.GET.get('u')
+        user = get_object_or_404(User,  activation_code=code)
+        user.is_active = True
+        user.activation_code = ''
+        user.save()
+        return Response('Успешно активирован', status=200)
+
+
+class LoginView(TokenObtainPairView):
+    permission_classes = (permissions.AllowAny,)
+
+
+class UserListView(generics.ListAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = permissions.IsAdminUser,
+
+
+class LogoutView(APIView):
+    permission_classes = permissions.IsAuthenticated,
 
     def post(self, request):
-        serializer = self.get_serializer(data=request.query_params)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response('Successfully activated', status=200)
+        try:
+            refresh_token = request.data['refresh_token']
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+
+            return Response('You logged out', status=205)
+        except:
+            return Response('Smth went wrong', status=400)
+
+
+class RegistrationPhoneView(APIView):
+    permission_classes = permissions.AllowAny,
+    def post(self, request):
+        data = request.data
+        serializer = RegisterPhoneSerializer(data=data)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            return Response('Phone verified')
+
+
+
+# from rest_framework_simplejwt.token_blacklist.models import \
+# OutstandingToken, BlacklistedToken
+#
+# BlacklistedToken.objects.filter(token__expires_at__lt=datetime.now()).delete()
+# OutstandingToken.objects.filter(expires_at__lt=datetime.now()).delete()

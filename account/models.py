@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.base_user import BaseUserManager
-from django.contrib.auth.models import UserManager
+from django.utils.crypto import get_random_string
 
 
 class UserManager(BaseUserManager):
@@ -12,7 +12,11 @@ class UserManager(BaseUserManager):
             return ValueError('Email was not handed')
         email = self.normalize_email(email=email)
         user = self.model(email=email, **kwargs)
-        user.create_activation_code()
+        phone_number = kwargs.get('phone_number')
+        if phone_number:
+            user.create_phone_number_code()
+        else:
+            user.create_activation_code()
         user.set_password(password)
         user.save()
         return user
@@ -36,6 +40,7 @@ class UserManager(BaseUserManager):
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=100)
+    phone_number = models.CharField(max_length=25, blank=True, null=True, unique=True)
     activation_code = models.CharField(max_length=255, blank=True)
     username = models.CharField(max_length=100, blank=True)
     first_name = models.CharField(max_length=100)
@@ -56,3 +61,8 @@ class CustomUser(AbstractUser):
 
         code = str(uuid.uuid4())
         self.activation_code = code
+
+    def create_phone_number_code(self):
+        code = get_random_string(6, allowed_chars='123456789')
+        self.activation_code = code
+        return code
